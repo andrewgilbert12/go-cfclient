@@ -44,6 +44,8 @@ func (c *Client) ListServiceKeysByQuery(query url.Values) ([]ServiceKey, error) 
 	var serviceKeys []ServiceKey
 	requestUrl := "/v2/service_keys?" + query.Encode()
 
+	_, listSinglePage := query["page"]
+
 	for {
 		var serviceKeysResp ServiceKeysResponse
 
@@ -70,7 +72,7 @@ func (c *Client) ListServiceKeysByQuery(query url.Values) ([]ServiceKey, error) 
 		}
 
 		requestUrl = serviceKeysResp.NextUrl
-		if requestUrl == "" {
+		if listSinglePage || requestUrl == "" {
 			break
 		}
 	}
