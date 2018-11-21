@@ -44,6 +44,8 @@ func (c *Client) ListServiceBindingsByQuery(query url.Values) ([]ServiceBinding,
 	var serviceBindings []ServiceBinding
 	requestUrl := "/v2/service_bindings?" + query.Encode()
 
+	_, listSinglePage := query["page"]
+
 	for {
 		var serviceBindingsResp ServiceBindingsResponse
 
@@ -69,7 +71,7 @@ func (c *Client) ListServiceBindingsByQuery(query url.Values) ([]ServiceBinding,
 			serviceBindings = append(serviceBindings, serviceBinding.Entity)
 		}
 		requestUrl = serviceBindingsResp.NextUrl
-		if requestUrl == "" {
+		if listSinglePage || requestUrl == "" {
 			break
 		}
 	}
