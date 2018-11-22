@@ -40,29 +40,25 @@ type ServiceKey struct {
 	c                   *Client
 }
 
+func (c *Client) ListServiceKeys() ([]ServiceKey, error) {
+	return c.ListServiceKeysByQuery(nil)
+}
+
 func (c *Client) ListServiceKeysByQuery(query url.Values) ([]ServiceKey, error) {
+	rawJsonPages, err := c.ListByQuery("service keys", "/v2/service_keys", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var serviceKeys []ServiceKey
-	requestUrl := "/v2/service_keys?" + query.Encode()
-
-	_, listSinglePage := query["page"]
-
-	for {
+	for _, page := range rawJsonPages {
 		var serviceKeysResp ServiceKeysResponse
 
-		r := c.NewRequest("GET", requestUrl)
-		resp, err := c.DoRequest(r)
+		err = json.Unmarshal(page, &serviceKeysResp)
 		if err != nil {
-			return nil, errors.Wrap(err, "Error requesting service keys")
-		}
-		resBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error reading service keys request:")
+			return nil, errors.Wrap(err, "Error unmarshaling service keys")
 		}
 
-		err = json.Unmarshal(resBody, &serviceKeysResp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "Error unmarshaling service keys: %q", string(resBody))
-		}
 		for _, serviceKey := range serviceKeysResp.Resources {
 			serviceKey.Entity.Guid = serviceKey.Meta.Guid
 			serviceKey.Entity.CreatedAt = serviceKey.Meta.CreatedAt
@@ -70,18 +66,9 @@ func (c *Client) ListServiceKeysByQuery(query url.Values) ([]ServiceKey, error) 
 			serviceKey.Entity.c = c
 			serviceKeys = append(serviceKeys, serviceKey.Entity)
 		}
-
-		requestUrl = serviceKeysResp.NextUrl
-		if listSinglePage || requestUrl == "" {
-			break
-		}
 	}
 
 	return serviceKeys, nil
-}
-
-func (c *Client) ListServiceKeys() ([]ServiceKey, error) {
-	return c.ListServiceKeysByQuery(nil)
 }
 
 func (c *Client) GetServiceKeyByName(name string) (ServiceKey, error) {

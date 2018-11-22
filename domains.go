@@ -58,36 +58,29 @@ type SharedDomain struct {
 }
 
 func (c *Client) ListDomainsByQuery(query url.Values) ([]Domain, error) {
-	var domains []Domain
-	requestUrl := "/v2/private_domains?" + query.Encode()
-	for {
-		var domainResp DomainsResponse
-		r := c.NewRequest("GET", requestUrl)
-		resp, err := c.DoRequest(r)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error requesting domains")
-		}
-		resBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error reading domains request")
-		}
+	rawJsonPages, err := c.ListByQuery("domains", "/v2/private_domains", query)
+	if err != nil {
+		return nil, err
+	}
 
-		err = json.Unmarshal(resBody, &domainResp)
+	var domains []Domain
+	for _, page := range rawJsonPages {
+		var domainsResp DomainsResponse
+
+		err = json.Unmarshal(page, &domainsResp)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error unmarshaling domains")
 		}
-		for _, domain := range domainResp.Resources {
-			domain.Entity.Guid = domain.Meta.Guid
-			domain.Entity.CreatedAt = domain.Meta.CreatedAt
-			domain.Entity.UpdatedAt = domain.Meta.UpdatedAt
-			domain.Entity.c = c
-			domains = append(domains, domain.Entity)
-		}
-		requestUrl = domainResp.NextUrl
-		if requestUrl == "" {
-			break
+
+		for _, privateDomain := range domainsResp.Resources {
+			privateDomain.Entity.Guid = privateDomain.Meta.Guid
+			privateDomain.Entity.CreatedAt = privateDomain.Meta.CreatedAt
+			privateDomain.Entity.UpdatedAt = privateDomain.Meta.UpdatedAt
+			privateDomain.Entity.c = c
+			domains = append(domains, privateDomain.Entity)
 		}
 	}
+
 	return domains, nil
 }
 
@@ -96,37 +89,30 @@ func (c *Client) ListDomains() ([]Domain, error) {
 }
 
 func (c *Client) ListSharedDomainsByQuery(query url.Values) ([]SharedDomain, error) {
-	var domains []SharedDomain
-	requestUrl := "/v2/shared_domains?" + query.Encode()
-	for {
-		var domainResp SharedDomainsResponse
-		r := c.NewRequest("GET", requestUrl)
-		resp, err := c.DoRequest(r)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error requesting shared domains")
-		}
-		resBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error reading shared domains request")
-		}
+	rawJsonPages, err := c.ListByQuery("shared domains", "/v2/shared_domains", query)
+	if err != nil {
+		return nil, err
+	}
 
-		err = json.Unmarshal(resBody, &domainResp)
+	var sharedDomains []SharedDomain
+	for _, page := range rawJsonPages {
+		var sharedDomainsResp SharedDomainsResponse
+
+		err = json.Unmarshal(page, &sharedDomainsResp)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error unmarshaling shared domains")
 		}
-		for _, domain := range domainResp.Resources {
-			domain.Entity.Guid = domain.Meta.Guid
-			domain.Entity.CreatedAt = domain.Meta.CreatedAt
-			domain.Entity.UpdatedAt = domain.Meta.UpdatedAt
-			domain.Entity.c = c
-			domains = append(domains, domain.Entity)
-		}
-		requestUrl = domainResp.NextUrl
-		if requestUrl == "" {
-			break
+
+		for _, sharedDomain := range sharedDomainsResp.Resources {
+			sharedDomain.Entity.Guid = sharedDomain.Meta.Guid
+			sharedDomain.Entity.CreatedAt = sharedDomain.Meta.CreatedAt
+			sharedDomain.Entity.UpdatedAt = sharedDomain.Meta.UpdatedAt
+			sharedDomain.Entity.c = c
+			sharedDomains = append(sharedDomains, sharedDomain.Entity)
 		}
 	}
-	return domains, nil
+
+	return sharedDomains, nil
 }
 
 func (c *Client) ListSharedDomains() ([]SharedDomain, error) {
@@ -230,6 +216,7 @@ func (c *Client) DeleteDomain(guid string) error {
 	}
 	return nil
 }
+
 func (c *Client) handleDomainResp(resp *http.Response) (*Domain, error) {
 	body, err := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()

@@ -34,25 +34,25 @@ type ServicePlanVisibility struct {
 	c                *Client
 }
 
+func (c *Client) ListServicePlanVisibilities() ([]ServicePlanVisibility, error) {
+	return c.ListServicePlanVisibilitiesByQuery(nil)
+}
+
 func (c *Client) ListServicePlanVisibilitiesByQuery(query url.Values) ([]ServicePlanVisibility, error) {
+	rawJsonPages, err := c.ListByQuery("service plan visibilities", "/v2/service_plan_visibilities", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var servicePlanVisibilities []ServicePlanVisibility
-	requestUrl := "/v2/service_plan_visibilities?" + query.Encode()
-	for {
+	for _, page := range rawJsonPages {
 		var servicePlanVisibilitiesResp ServicePlanVisibilitiesResponse
-		r := c.NewRequest("GET", requestUrl)
-		resp, err := c.DoRequest(r)
+
+		err = json.Unmarshal(page, &servicePlanVisibilitiesResp)
 		if err != nil {
-			return nil, errors.Wrap(err, "Error requesting service plan visibilities")
-		}
-		resBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error reading service plan visibilities request:")
+			return nil, errors.Wrap(err, "Error unmarshaling service keys")
 		}
 
-		err = json.Unmarshal(resBody, &servicePlanVisibilitiesResp)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error unmarshaling service plan visibilities")
-		}
 		for _, servicePlanVisibility := range servicePlanVisibilitiesResp.Resources {
 			servicePlanVisibility.Entity.Guid = servicePlanVisibility.Meta.Guid
 			servicePlanVisibility.Entity.CreatedAt = servicePlanVisibility.Meta.CreatedAt
@@ -60,16 +60,9 @@ func (c *Client) ListServicePlanVisibilitiesByQuery(query url.Values) ([]Service
 			servicePlanVisibility.Entity.c = c
 			servicePlanVisibilities = append(servicePlanVisibilities, servicePlanVisibility.Entity)
 		}
-		requestUrl = servicePlanVisibilitiesResp.NextUrl
-		if requestUrl == "" {
-			break
-		}
 	}
-	return servicePlanVisibilities, nil
-}
 
-func (c *Client) ListServicePlanVisibilities() ([]ServicePlanVisibility, error) {
-	return c.ListServicePlanVisibilitiesByQuery(nil)
+	return servicePlanVisibilities, nil
 }
 
 func (c *Client) GetServicePlanVisibilityByGuid(guid string) (ServicePlanVisibility, error) {

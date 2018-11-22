@@ -2,7 +2,6 @@ package cfclient
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/url"
 
 	"github.com/pkg/errors"
@@ -47,30 +46,28 @@ type AppUsageEventResource struct {
 
 // ListAppUsageEventsByQuery lists all events matching the provided query.
 func (c *Client) ListAppUsageEventsByQuery(query url.Values) ([]AppUsageEvent, error) {
+	rawJsonPages, err := c.ListByQuery("app usage events", "/v2/app_usage_events", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var appUsageEvents []AppUsageEvent
-	requestURL := fmt.Sprintf("/v2/app_usage_events?%s", query.Encode())
-	for {
-		var appUsageEventsResponse AppUsageEventsResponse
-		r := c.NewRequest("GET", requestURL)
-		resp, err := c.DoRequest(r)
+	for _, page := range rawJsonPages {
+		var appUsageEventsResp AppUsageEventsResponse
+
+		err = json.Unmarshal(page, &appUsageEventsResp)
 		if err != nil {
-			return nil, errors.Wrap(err, "error requesting events")
+			return nil, errors.Wrap(err, "Error unmarshaling app usage events")
 		}
-		defer resp.Body.Close()
-		if err := json.NewDecoder(resp.Body).Decode(&appUsageEventsResponse); err != nil {
-			return nil, errors.Wrap(err, "error unmarshaling events")
-		}
-		for _, e := range appUsageEventsResponse.Resources {
-			e.Entity.GUID = e.Meta.Guid
-			e.Entity.CreatedAt = e.Meta.CreatedAt
-			e.Entity.c = c
-			appUsageEvents = append(appUsageEvents, e.Entity)
-		}
-		requestURL = appUsageEventsResponse.NextURL
-		if requestURL == "" {
-			break
+
+		for _, serviceBinding := range appUsageEventsResp.Resources {
+			serviceBinding.Entity.GUID = serviceBinding.Meta.Guid
+			serviceBinding.Entity.CreatedAt = serviceBinding.Meta.CreatedAt
+			serviceBinding.Entity.c = c
+			appUsageEvents = append(appUsageEvents, serviceBinding.Entity)
 		}
 	}
+
 	return appUsageEvents, nil
 }
 

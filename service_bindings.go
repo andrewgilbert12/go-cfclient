@@ -41,38 +41,26 @@ type ServiceBinding struct {
 }
 
 func (c *Client) ListServiceBindingsByQuery(query url.Values) ([]ServiceBinding, error) {
+	rawJsonPages, err := c.ListByQuery("service bindings", "/v2/service_bindings", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var serviceBindings []ServiceBinding
-	requestUrl := "/v2/service_bindings?" + query.Encode()
-
-	_, listSinglePage := query["page"]
-
-	for {
+	for _, page := range rawJsonPages {
 		var serviceBindingsResp ServiceBindingsResponse
 
-		r := c.NewRequest("GET", requestUrl)
-		resp, err := c.DoRequest(r)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error requesting service bindings")
-		}
-		resBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error reading service bindings request:")
-		}
-
-		err = json.Unmarshal(resBody, &serviceBindingsResp)
+		err = json.Unmarshal(page, &serviceBindingsResp)
 		if err != nil {
 			return nil, errors.Wrap(err, "Error unmarshaling service bindings")
 		}
+
 		for _, serviceBinding := range serviceBindingsResp.Resources {
 			serviceBinding.Entity.Guid = serviceBinding.Meta.Guid
 			serviceBinding.Entity.CreatedAt = serviceBinding.Meta.CreatedAt
 			serviceBinding.Entity.UpdatedAt = serviceBinding.Meta.UpdatedAt
 			serviceBinding.Entity.c = c
 			serviceBindings = append(serviceBindings, serviceBinding.Entity)
-		}
-		requestUrl = serviceBindingsResp.NextUrl
-		if listSinglePage || requestUrl == "" {
-			break
 		}
 	}
 

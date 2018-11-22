@@ -41,30 +41,28 @@ type Event struct {
 
 // ListEventsByQuery lists all events matching the provided query.
 func (c *Client) ListEventsByQuery(query url.Values) ([]Event, error) {
+	rawJsonPages, err := c.ListByQuery("events", "/v2/events", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var events []Event
-	requestURL := fmt.Sprintf("/v2/events?%s", query.Encode())
-	for {
-		var eventResp EventsResponse
-		r := c.NewRequest("GET", requestURL)
-		resp, err := c.DoRequest(r)
+	for _, page := range rawJsonPages {
+		var eventsResp EventsResponse
+
+		err = json.Unmarshal(page, &eventsResp)
 		if err != nil {
-			return nil, errors.Wrap(err, "error requesting events")
+			return nil, errors.Wrap(err, "Error unmarshaling service bindings")
 		}
-		defer resp.Body.Close()
-		if err := json.NewDecoder(resp.Body).Decode(&eventResp); err != nil {
-			return nil, errors.Wrap(err, "error unmarshaling events")
-		}
-		for _, e := range eventResp.Resources {
-			e.Entity.GUID = e.Meta.Guid
-			e.Entity.CreatedAt = e.Meta.CreatedAt
-			e.Entity.c = c
-			events = append(events, e.Entity)
-		}
-		requestURL = eventResp.NextURL
-		if requestURL == "" {
-			break
+
+		for _, serviceBinding := range eventsResp.Resources {
+			serviceBinding.Entity.GUID = serviceBinding.Meta.Guid
+			serviceBinding.Entity.CreatedAt = serviceBinding.Meta.CreatedAt
+			serviceBinding.Entity.c = c
+			events = append(events, serviceBinding.Entity)
 		}
 	}
+
 	return events, nil
 }
 
