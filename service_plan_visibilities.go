@@ -50,7 +50,7 @@ func (c *Client) ListServicePlanVisibilitiesByQuery(query url.Values) ([]Service
 
 		err = json.Unmarshal(page, &servicePlanVisibilitiesResp)
 		if err != nil {
-			return nil, errors.Wrap(err, "Error unmarshaling service keys")
+			return nil, errors.Wrap(err, "Error unmarshaling service plan visibilities")
 		}
 
 		for _, servicePlanVisibility := range servicePlanVisibilitiesResp.Resources {

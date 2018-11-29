@@ -17,7 +17,7 @@ type RouteMappingRequest struct {
 	AppPort   int    `json:"app_port"`
 }
 
-type RouteMappingResponse struct {
+type RouteMappingsResponse struct {
 	Count     int                    `json:"total_results"`
 	Pages     int                    `json:"total_pages"`
 	NextUrl   string                 `json:"next_url"`
@@ -63,40 +63,25 @@ func (c *Client) ListRouteMappings() ([]*RouteMapping, error) {
 }
 
 func (c *Client) ListRouteMappingsByQuery(query url.Values) ([]*RouteMapping, error) {
+	rawJsonPages, err := c.ListByQuery("route mappings", "/v2/route_mappings", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var routeMappings []*RouteMapping
-	var routeMappingsResp RouteMappingResponse
-	pages := 0
+	for _, page := range rawJsonPages {
+		var routeMappingsResponse RouteMappingsResponse
 
-	requestUrl := "/v2/route_mappings?" + query.Encode()
-	for {
-		r := c.NewRequest("GET", requestUrl)
-		resp, err := c.DoRequest(r)
+		err = json.Unmarshal(page, &routeMappingsResponse)
 		if err != nil {
-			return nil, errors.Wrap(err, "Error requesting route mappings")
-		}
-		resBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error reading route mappings request:")
+			return nil, errors.Wrap(err, "Error unmarshaling route mappings")
 		}
 
-		err = json.Unmarshal(resBody, &routeMappingsResp)
-		if err != nil {
-			return nil, errors.Wrap(err, "Error unmarshalling route mappings")
-		}
-
-		for _, routeMapping := range routeMappingsResp.Resources {
+		for _, routeMapping := range routeMappingsResponse.Resources {
 			routeMappings = append(routeMappings, c.mergeRouteMappingResource(routeMapping))
 		}
-		requestUrl = routeMappingsResp.NextUrl
-		if requestUrl == "" {
-			break
-		}
-		pages++
-		totalPages := routeMappingsResp.Pages
-		if totalPages > 0 && pages >= totalPages {
-			break
-		}
 	}
+
 	return routeMappings, nil
 }
 

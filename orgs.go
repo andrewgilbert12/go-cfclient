@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-type OrgResponse struct {
+type OrgsResponse struct {
 	Count     int           `json:"total_results"`
 	Pages     int           `json:"total_pages"`
 	NextUrl   string        `json:"next_url"`
@@ -65,21 +65,29 @@ type OrgRequest struct {
 }
 
 func (c *Client) ListOrgsByQuery(query url.Values) ([]Org, error) {
+	rawJsonPages, err := c.ListByQuery("organizations", "/v2/organizations", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var orgs []Org
-	requestURL := "/v2/organizations?" + query.Encode()
-	for {
-		orgResp, err := c.getOrgResponse(requestURL)
+	for _, page := range rawJsonPages {
+		var orgsResp OrgsResponse
+
+		err = json.Unmarshal(page, &orgsResp)
 		if err != nil {
-			return []Org{}, err
+			return nil, errors.Wrap(err, "Error unmarshaling organizations")
 		}
-		for _, org := range orgResp.Resources {
-			orgs = append(orgs, c.mergeOrgResource(org))
-		}
-		requestURL = orgResp.NextUrl
-		if requestURL == "" {
-			break
+
+		for _, org := range orgsResp.Resources {
+			org.Entity.Guid = org.Meta.Guid
+			org.Entity.CreatedAt = org.Meta.CreatedAt
+			org.Entity.UpdatedAt = org.Meta.UpdatedAt
+			org.Entity.c = c
+			orgs = append(orgs, org.Entity)
 		}
 	}
+
 	return orgs, nil
 }
 
@@ -715,21 +723,21 @@ func (c *Client) DeleteOrg(guid string, recursive, async bool) error {
 	return nil
 }
 
-func (c *Client) getOrgResponse(requestURL string) (OrgResponse, error) {
-	var orgResp OrgResponse
+func (c *Client) getOrgResponse(requestURL string) (OrgsResponse, error) {
+	var orgResp OrgsResponse
 	r := c.NewRequest("GET", requestURL)
 	resp, err := c.DoRequest(r)
 	if err != nil {
-		return OrgResponse{}, errors.Wrap(err, "Error requesting orgs")
+		return OrgsResponse{}, errors.Wrap(err, "Error requesting orgs")
 	}
 	resBody, err := ioutil.ReadAll(resp.Body)
 	defer resp.Body.Close()
 	if err != nil {
-		return OrgResponse{}, errors.Wrap(err, "Error reading org request")
+		return OrgsResponse{}, errors.Wrap(err, "Error reading org request")
 	}
 	err = json.Unmarshal(resBody, &orgResp)
 	if err != nil {
-		return OrgResponse{}, errors.Wrap(err, "Error unmarshalling org")
+		return OrgsResponse{}, errors.Wrap(err, "Error unmarshalling org")
 	}
 	return orgResp, nil
 }

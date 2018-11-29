@@ -58,25 +58,29 @@ type OrgQuota struct {
 }
 
 func (c *Client) ListOrgQuotasByQuery(query url.Values) ([]OrgQuota, error) {
+	rawJsonPages, err := c.ListByQuery("org quotas", "/v2/quota_definitions", query)
+	if err != nil {
+		return nil, err
+	}
+
 	var orgQuotas []OrgQuota
-	requestUrl := "/v2/quota_definitions?" + query.Encode()
-	for {
-		orgQuotasResp, err := c.getOrgQuotasResponse(requestUrl)
+	for _, page := range rawJsonPages {
+		var orgQuotasResponse OrgQuotasResponse
+
+		err = json.Unmarshal(page, &orgQuotasResponse)
 		if err != nil {
-			return []OrgQuota{}, err
+			return nil, errors.Wrap(err, "Error unmarshaling org quotas")
 		}
-		for _, org := range orgQuotasResp.Resources {
-			org.Entity.Guid = org.Meta.Guid
-			org.Entity.CreatedAt = org.Meta.CreatedAt
-			org.Entity.UpdatedAt = org.Meta.UpdatedAt
-			org.Entity.c = c
-			orgQuotas = append(orgQuotas, org.Entity)
-		}
-		requestUrl = orgQuotasResp.NextUrl
-		if requestUrl == "" {
-			break
+
+		for _, orgQuota := range orgQuotasResponse.Resources {
+			orgQuota.Entity.Guid = orgQuota.Meta.Guid
+			orgQuota.Entity.CreatedAt = orgQuota.Meta.CreatedAt
+			orgQuota.Entity.UpdatedAt = orgQuota.Meta.UpdatedAt
+			orgQuota.Entity.c = c
+			orgQuotas = append(orgQuotas, orgQuota.Entity)
 		}
 	}
+
 	return orgQuotas, nil
 }
 
